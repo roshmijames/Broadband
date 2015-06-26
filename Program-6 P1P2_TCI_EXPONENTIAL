@@ -1,0 +1,123 @@
+function [ P1_avg P2_avg Eb_avg Px change batt_Eb] = P1P2_TCI_exp(Pa,slope,minutes)
+
+Eb_tot=0;
+change=zeros(1);
+P1_avg=zeros(1);
+P2_avg=zeros(1);
+Eb_diff=zeros(1);
+P1_tot=0;
+P2_tot=0;
+Px_tot=0;
+change_tot=0;
+Eb_diff_tot=0;
+days=100;
+Pmax=zeros(1);
+Pmin=zeros(1);
+P1=zeros(1);
+days_flag=0;
+
+
+eta=0.5;
+
+N=12*(60/minutes);
+
+for d=1:1:days
+    
+    Px_exp_rand=exprnd(1,N,1);
+    Pmax_rand=ceil(max(Px_exp_rand));
+    Px=(Px_exp_rand/Pmax_rand)*200;
+    
+    Pmax=max(Px);
+    P1=round(Pmax/2);
+    Pmin=min(Px);
+    P2=zeros(1);
+    LHS=1; RHS=0;
+    P2_prev=zeros(1);
+    P1_prev=zeros(1);
+    k=1;
+    flag=1;
+    
+    while(flag)
+        P2_slope=slope(Pa==P1)/0.5;
+        for j=1:1:length(slope)
+            if (slope(j)<=P2_slope) & (slope(j)>0)
+                if(~(ismember(Pa(j),P2_prev)))
+                    P2=Pa(j);
+                    break;
+                end
+            end
+        end
+        
+        P2_w=P2/1000;
+        Pmin_w=Pmin/1000;
+        P1_w=P1/1000;
+        Pmax_w=Pmax/1000;
+        
+        LHS=exp(-P2_w)+(exp(-Pmin_w)*(P2_w-Pmin_w-1));
+        RHS=0.5*(exp(-P1_w)+(exp(-Pmax_w)*(P1_w-Pmax_w-1)));
+        
+        P2_prev(k)=P2;
+        P1_prev(k)=P1;
+        if(k>2)
+            if(P2_prev(k)==P2_prev(k-2) && P1_prev(k)==P1_prev(k-2))
+                continue;
+            end
+        end
+        k=k+1;
+        
+        %checking if the iterations are too much
+        if length(P1_prev)>1000 || length(P2_prev)>1000
+            days_flag=1;
+            break;
+        end
+        
+        LHS_diff_RHS=(LHS-RHS)*1000;
+        
+        if(abs(LHS_diff_RHS)<=100)
+            flag=0;
+        elseif LHS_diff_RHS>0
+            P1=P1-1;
+        elseif LHS_diff_RHS<0
+            P1=P1+1;
+        end
+    end
+    
+    if P1<P2 || P2<0 || days_flag==1
+        days_flag=0;
+        days=days-1;
+        continue;
+    end
+    
+    % ENERGY NEUTRALITY CHECKED
+    Eb=zeros(1);
+    Eb(1)=10000;  % This is in Joules - eg: - 3600(1 hr)*12V
+    
+    for i=1:1:size(Px,1)
+        if Px(i)>=P1  % We need time in sec -  hence minutes(m)*60
+            Eb(i+1)=Eb(i)+(((Px(i)-P1)/1000)*(minutes*60)*sqrt(eta));
+            Pa_Tp(i)=P1;  % Px and Pi are in mW - hence divide it by 1000 to get in Joules
+        elseif Px(i)<P1 && Px(i)>P2
+            Eb(i+1)=Eb(i);
+            Pa_Tp(i)=Px(i);
+        elseif Px(i)<=P2
+            Eb(i+1)=Eb(i)+((((Px(i)-P2)/1000)*(minutes*60))/sqrt(eta));
+            Pa_Tp(i)=P2;
+        end
+    end
+    
+    Eb_tot=(Eb(N+1)+Eb_tot);
+    change_tot=Eb(N+1)-Eb(1)+change_tot;
+    P1_tot=P1+P1_tot;
+    P2_tot=P2+P2_tot;
+    Eb_diff_tot=(max(Eb)-min(Eb))+Eb_diff_tot;
+    
+end
+
+Eb_avg=Eb_tot/days;
+P1_avg=P1_tot/days;
+P2_avg=P2_tot/days;
+change=((change_tot/days)/Eb(1))*100;
+Eb_diff=Eb_diff_tot/days;
+batt_Eb=(Eb_diff/(3600*0.5*7.4))*1000;
+
+end
