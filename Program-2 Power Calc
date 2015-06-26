@@ -1,0 +1,28 @@
+function [ Pa_tp ] = Pwr_Pa_Tp(P1_avg,P2_avg,Px,type,distribution)
+
+% IF POWER>P1 --> Pa=P1
+% IF POWER<P2 --> Pa=P2
+
+    for i=1:1:length(Px)
+        if Px(i)>=P1_avg
+            Pa_tp(i)=P1_avg;
+        elseif Px(i)<P1_avg && Px(i)>P2_avg
+            Pa_tp(i)=Px(i);
+        elseif Px(i)<=P2_avg
+            Pa_tp(i)=P2_avg;
+        end
+    end
+    
+    % PLOTING VALUES OF Pa,P1 & P2
+    figure;
+    slots=1:1:length(Px);
+    plot(slots,Pa_tp,'ro-',slots,Px,'*g--',slots,P1_avg,'bo-',slots,P2_avg,'bo-');
+    grid on;
+    xlabel('Time(slots)');
+    ylabel('Power(mW)');
+    n=length(Px);
+    str=['Power in each Tp Slot; Slot Duration is ',num2str(n),'min',' P1 = ',num2str(P1_avg),'mW',' P2 = ',num2str(P2_avg),'mW'];
+    title({type; distribution; str});
+    legend('Pa - Power in each Tp','Px - Power harvested in each slot','P1','P2');
+    
+end
